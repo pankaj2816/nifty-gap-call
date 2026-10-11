@@ -338,7 +338,7 @@ def _write_site(payload: Dict[str, Any]) -> None:
 <main>
   <p class="muted">Live test from 12 Oct 2026 · updated {html.escape(str(payload.get('updated_at', '')))}</p>
   <h1>NIFTY opening-gap call</h1>
-  <p>A call is locked before 9:15 IST only when the completed S&amp;P move is at least 1%. GitHub updates this page on market days. A miss is described after the result exists. The description does not change the call.</p>
+  <p>One call is locked before 9:15 IST, and only when the completed S&amp;P move is at least 1%. The page is checked every 15 minutes until 16:00 IST so the open, the close, and a written reason can be saved. Those later checks do not make a new call. A one-minute or five-minute call is not used, because the measured link is the opening gap, not the rest of the session.</p>
   <p class="muted">{html.escape(str(latest.get('session_date', 'Next session')))} · {html.escape(str(latest.get('status', '')))}</p>
   <p class="call">{html.escape(str(call))}</p>
   <p>{html.escape(str(latest.get('review') or latest.get('notes') or ''))}</p>
@@ -397,6 +397,19 @@ def update_live_log(
             _lock_prediction(row, session, spx_bars, bool(spx_stale), prev[-1]["close"] if prev else None)
             _score_row(row, session, ordered, clock, nifty_fetched_at)
             rows.append(row)
+        unchanged = json.dumps(rows, sort_keys=True, default=str) == json.dumps(
+            [existing[r["session_date"]] for r in rows if r["session_date"] in existing],
+            sort_keys=True, default=str,
+        ) and len(existing) == len(rows)
+        if unchanged and target.exists():
+            return {
+                "live_from": LIVE_START.isoformat(),
+                "file": str(target),
+                "updated_at": clock.strftime("%Y-%m-%d %H:%M IST"),
+                "rows": rows,
+                "summary": _summary(rows),
+                "unchanged": True,
+            }
         try:
             _write(target, rows)
             warning = None
