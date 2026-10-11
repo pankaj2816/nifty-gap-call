@@ -1,0 +1,4 @@
+requests>=2.32.0
+openpyxl>=3.1.0
+tzdata>=2025.2
+exchange-calendars>=4.11,<5

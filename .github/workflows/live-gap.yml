@@ -1,0 +1,40 @@
+name: Live gap log
+
+on:
+  schedule:
+    # 08:00 IST, lock the call before the Indian open.
+    - cron: "30 2 * * 1-5"
+    # 09:45 IST, fill the opening gap once the session has started.
+    - cron: "15 4 * * 1-5"
+    # 15:45 IST, fill the close and the written review.
+    - cron: "15 10 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Update the prediction log and page
+        run: python backend/scripts/update_live_log.py
+        env:
+          PYTHONPATH: backend
+      - name: Publish the updated log
+        run: |
+          git config user.name "gap-log"
+          git config user.email "gap-log@users.noreply.github.com"
+          git add live_log docs
+          if git diff --staged --quiet; then
+            echo "No log changes."
+            exit 0
+          fi
+          git commit -m "Update the live gap log"
+          git push
