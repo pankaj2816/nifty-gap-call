@@ -350,7 +350,7 @@ def _write_site(payload: Dict[str, Any]) -> None:
       {''.join(body_rows) or '<tr><td colspan="6">No sessions yet.</td></tr>'}
     </tbody>
   </table>
-  <p class="muted">Paper record only. Past research, before 12 Oct 2026, is not this live test. Not investment advice.</p>
+  <p class="muted">Paper record only. Past research, before 12 Oct 2026, is not this live test. Not investment advice. <a href="short-term.html">Two-minute paper test</a></p>
 </main>
 </body>
 </html>
