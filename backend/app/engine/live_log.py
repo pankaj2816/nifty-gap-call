@@ -343,6 +343,7 @@ def _write_site(payload: Dict[str, Any]) -> None:
   <p class="call">{html.escape(str(call))}</p>
   <p>{html.escape(str(latest.get('review') or latest.get('notes') or ''))}</p>
   <p class="muted">Calls made {summary.get('calls', 0)} · No-call days {summary.get('no_calls', 0)} · Gap same way {summary.get('gap_same_way', 0)} of {summary.get('gap_scored', 0)}</p>
+  <p class="muted">Latest downloaded NIFTY session: {html.escape(str((payload.get('data_status') or {}).get('nifty_last') or 'unavailable'))}{((' · download error: ' + html.escape(str((payload.get('data_status') or {}).get('nifty_error')))) if (payload.get('data_status') or {}).get('nifty_error') else '')}</p>
   <table>
     <thead><tr><th>Session</th><th>S&amp;P %</th><th>Call</th><th>Gap</th><th>Open to close</th><th>What the result shows</th></tr></thead>
     <tbody>
@@ -374,14 +375,23 @@ def update_live_log(
     if clock.tzinfo is None:
         raise ValueError("Live-log clock must include a timezone.")
     target = path or LOG_PATH.resolve()
+    data_status: Dict[str, Any] = {}
     if nifty_bars is None or spx_bars is None or spx_stale is None:
         from app.data.market_history import get_daily_history, get_spx_history
-        nifty = get_daily_history()
-        spx = get_spx_history()
+        nifty = get_daily_history(force_refresh=True)
+        spx = get_spx_history(force_refresh=True)
         nifty_bars = nifty.get("bars", [])
         spx_bars = spx.get("bars", [])
         spx_stale = bool(spx.get("is_stale", True))
         nifty_fetched_at = nifty.get("fetched_at")
+        data_status = {
+            "nifty_bars": len(nifty_bars),
+            "nifty_last": nifty_bars[-1]["date"] if nifty_bars else None,
+            "nifty_error": nifty.get("error"),
+            "spx_bars": len(spx_bars),
+            "spx_last": spx_bars[-1]["date"] if spx_bars else None,
+            "spx_error": spx.get("error"),
+        }
     try:
         last = nse_session_to_describe(clock)
     except CalendarUnavailable as exc:
@@ -397,19 +407,6 @@ def update_live_log(
             _lock_prediction(row, session, spx_bars, bool(spx_stale), prev[-1]["close"] if prev else None)
             _score_row(row, session, ordered, clock, nifty_fetched_at)
             rows.append(row)
-        unchanged = json.dumps(rows, sort_keys=True, default=str) == json.dumps(
-            [existing[r["session_date"]] for r in rows if r["session_date"] in existing],
-            sort_keys=True, default=str,
-        ) and len(existing) == len(rows)
-        if unchanged and target.exists():
-            return {
-                "live_from": LIVE_START.isoformat(),
-                "file": str(target),
-                "updated_at": clock.strftime("%Y-%m-%d %H:%M IST"),
-                "rows": rows,
-                "summary": _summary(rows),
-                "unchanged": True,
-            }
         try:
             _write(target, rows)
             warning = None
@@ -421,6 +418,7 @@ def update_live_log(
             "updated_at": clock.strftime("%Y-%m-%d %H:%M IST"),
             "rows": rows,
             "summary": _summary(rows),
+            "data_status": data_status,
         }
         if warning:
             payload["warning"] = warning

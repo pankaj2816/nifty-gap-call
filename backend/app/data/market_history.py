@@ -25,15 +25,24 @@ _memory_cache: Optional[Dict[str, Any]] = None
 
 def _fetch_yahoo_daily(symbol: str, years: int = 10) -> Dict[str, Dict[str, float]]:
     """Return {YYYY-MM-DD: {open, high, low, close, volume}} for a Yahoo symbol."""
-    url = YAHOO_CHART_URL.format(symbol=requests.utils.quote(symbol))
-    resp = requests.get(
-        url,
-        params={"range": f"{years}y", "interval": "1d"},
-        headers={"User-Agent": "Mozilla/5.0"},
-        timeout=20,
-    )
-    resp.raise_for_status()
-    result = resp.json()["chart"]["result"][0]
+    result = None
+    last_error = None
+    for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
+        url = f"https://{host}/v8/finance/chart/{requests.utils.quote(symbol)}"
+        try:
+            resp = requests.get(
+                url,
+                params={"range": f"{years}y", "interval": "1d"},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=20,
+            )
+            resp.raise_for_status()
+            result = resp.json()["chart"]["result"][0]
+            break
+        except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
+            last_error = exc
+    if result is None:
+        raise requests.RequestException(str(last_error))
     quote = result["indicators"]["quote"][0]
     bars: Dict[str, Dict[str, float]] = {}
     for i, ts in enumerate(result["timestamp"]):

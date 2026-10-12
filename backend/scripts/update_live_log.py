@@ -9,7 +9,9 @@ from app.engine.live_log import update_live_log
 
 if __name__ == "__main__":
     result = update_live_log()
+    latest = (result.get("rows") or [{}])[-1]
     print(result.get("updated_at"), result.get("summary"))
+    print("data", result.get("data_status"), "open", latest.get("nifty_open"), "review", latest.get("review"))
     if result.get("warning"):
         print(result["warning"])
         sys.exit(1)
